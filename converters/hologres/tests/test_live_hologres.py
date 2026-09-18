@@ -61,6 +61,7 @@ pytestmark = [
 SCHEMA = "ossie_hologres_it"
 VIEW = "it_sales_sv"
 REEXPORT_VIEW = "it_sales_sv_reexport"
+TPCDS_VIEW = "tpcds_retail_model"
 
 # Minimal star schema matching tests/fixtures/fixtureB_ossie.yaml. Rows are inserted so
 # the assertions can check numbers, not just that the DDL parses -- in particular that
@@ -85,6 +86,39 @@ INSERT INTO {SCHEMA}.svacc_order_items VALUES
   (1001, 101, 1), (1002, 101, 2), (1003, 102, 1),
   (1004, 102, 1), (1005, 103, 3), (1006, 104, 1);
 """
+
+# A wide snowflake around the upstream TPC-DS example: five tables, a composite
+# primary key, four relationships, and a computed dimension that needs the
+# parentheses the DDL grammar requires. Seeded so the view can answer queries.
+_TPCDS_STUBS = f"""
+CREATE TABLE IF NOT EXISTS {SCHEMA}.store_sales (
+  ss_item_sk int, ss_ticket_number int, ss_sold_date_sk int, ss_customer_sk int,
+  ss_store_sk int, ss_quantity int, ss_sales_price numeric(7,2),
+  ss_ext_sales_price numeric(7,2), ss_net_profit numeric(7,2),
+  PRIMARY KEY (ss_item_sk, ss_ticket_number));
+CREATE TABLE IF NOT EXISTS {SCHEMA}.date_dim (
+  d_date_sk int PRIMARY KEY, d_date date, d_year int, d_quarter_name text,
+  d_moy int);
+CREATE TABLE IF NOT EXISTS {SCHEMA}.customer (
+  c_customer_sk int PRIMARY KEY, c_customer_id text, c_first_name text,
+  c_last_name text, c_email_address text);
+CREATE TABLE IF NOT EXISTS {SCHEMA}.item (
+  i_item_sk int PRIMARY KEY, i_item_id text, i_item_desc text, i_brand text,
+  i_category text, i_current_price numeric(7,2));
+CREATE TABLE IF NOT EXISTS {SCHEMA}.store (
+  s_store_sk int PRIMARY KEY, s_store_id text, s_store_name text, s_city text,
+  s_state text, s_number_employees int);
+"""
+_TPCDS_TABLES = ("store_sales", "date_dim", "customer", "item", "store")
+_TPCDS_ROWS = (
+    f"INSERT INTO {SCHEMA}.date_dim VALUES (1, DATE '2026-01-01', 2026, '2026Q1', 1)",
+    f"INSERT INTO {SCHEMA}.customer VALUES (1, 'c1', 'Ann', 'Smith', 'ann@example.com')",
+    f"INSERT INTO {SCHEMA}.item VALUES (1, 'i1', 'the thing', 'brand-a', 'cat', 10.00)",
+    f"INSERT INTO {SCHEMA}.store VALUES (1, 's1', 'Store1', 'Beijing', 'BJ', 50)",
+    f"""INSERT INTO {SCHEMA}.store_sales VALUES
+      (1, 101, 1, 1, 1, 2, 20.00, 30.00, 1.00),
+      (1, 102, 1, 1, 1, 1, 10.00, 15.00, 2.00)""",
+)
 
 
 def _export(ossie_yaml, **kwargs):
@@ -178,31 +212,60 @@ class TestGeneratedDdlIsAccepted:
         ).fetchall()
         assert {"ddl_text", "model_yaml"} <= {k for (k,) in keys}
 
-    def test_the_tpcds_snowflake_ddl_is_also_accepted(self, star):
-        # A wider shape than fixtureB: five tables, a composite primary key, four
-        # relationships, and a computed dimension needing parentheses.
-        from _util import EXAMPLES
+    def test_recreating_the_view_with_drop_if_exists(self, star, created_view):
+        # Hologres has no CREATE OR REPLACE or ALTER: the documented way to change a
+        # view is re-running DDL that starts with DROP IF EXISTS. Run the exact DDL
+        # from the fixture a second time and prove the view still answers.
+        star.execute(created_view)
+        total, count = star.execute(
+            f"SELECT AGG(total), AGG(order_count) FROM {SCHEMA}.{VIEW}"
+        ).fetchone()
+        assert (total, count) == (500, 4)
 
-        stubs = f"""
-        CREATE TABLE IF NOT EXISTS {SCHEMA}.store_sales (
-          ss_item_sk int, ss_ticket_number int, ss_sold_date_sk int, ss_customer_sk int,
-          ss_store_sk int, ss_quantity int, ss_sales_price numeric(7,2),
-          ss_ext_sales_price numeric(7,2), ss_net_profit numeric(7,2),
-          PRIMARY KEY (ss_item_sk, ss_ticket_number));
-        CREATE TABLE IF NOT EXISTS {SCHEMA}.date_dim (
-          d_date_sk int PRIMARY KEY, d_date date, d_year int, d_quarter_name text,
-          d_moy int);
-        CREATE TABLE IF NOT EXISTS {SCHEMA}.customer (
-          c_customer_sk int PRIMARY KEY, c_customer_id text, c_first_name text,
-          c_last_name text, c_email_address text);
-        CREATE TABLE IF NOT EXISTS {SCHEMA}.item (
-          i_item_sk int PRIMARY KEY, i_item_id text, i_item_desc text, i_brand text,
-          i_category text, i_current_price numeric(7,2));
-        CREATE TABLE IF NOT EXISTS {SCHEMA}.store (
-          s_store_sk int PRIMARY KEY, s_store_id text, s_store_name text, s_city text,
-          s_state text, s_number_employees int);
-        """
-        star.execute(stubs)
+    def test_schema_option_supplies_the_default_schema(self, star):
+        # Sources without a schema get the --schema option's value; prove the
+        # qualified DDL is accepted and answers against the real table.
+        ossie = f"""version: 0.2.0.dev0
+name: it_bare_sv
+datasets:
+- name: o
+  source: svacc_orders
+  primary_key: [order_id]
+  fields:
+  - name: region_dim
+    expression:
+      dialects:
+      - dialect: ANSI_SQL
+        expression: region
+metrics:
+- name: total
+  expression:
+    dialects:
+    - dialect: ANSI_SQL
+      expression: SUM(o.amount)
+"""
+        ddl = _export(ossie, schema=SCHEMA)
+        assert f"{SCHEMA}.svacc_orders" in ddl
+        try:
+            star.execute(f"DROP SEMANTIC VIEW IF EXISTS {SCHEMA}.it_bare_sv")
+            star.execute(ddl)
+            total = star.execute(f"SELECT AGG(total) FROM {SCHEMA}.it_bare_sv").fetchone()[0]
+            assert total == 500
+        finally:
+            star.execute(f"DROP SEMANTIC VIEW IF EXISTS {SCHEMA}.it_bare_sv")
+
+
+@pytest.fixture(scope="module")
+def tpcds(star):
+    """Create the TPC-DS snowflake stubs, seed rows, and the Semantic View."""
+    from _util import EXAMPLES
+
+    try:
+        star.execute(_TPCDS_STUBS)
+        for table in _TPCDS_TABLES:
+            star.execute(f"TRUNCATE {SCHEMA}.{table}")
+        for statement in _TPCDS_ROWS:
+            star.execute(statement)
         ossie = _retarget(
             (EXAMPLES / "tpcds_semantic_model.yaml").read_text(encoding="utf-8"),
             "tpcds.public.",
@@ -211,7 +274,67 @@ class TestGeneratedDdlIsAccepted:
             ossie, schema=SCHEMA, drop_if_exists=True, skip_unsupported_metrics=True
         )
         star.execute(ddl)
-        star.execute(f"DROP SEMANTIC VIEW IF EXISTS {SCHEMA}.tpcds_retail_model")
+        yield star
+    finally:
+        star.execute(f"DROP SEMANTIC VIEW IF EXISTS {SCHEMA}.{TPCDS_VIEW}")
+
+
+class TestTpcdsSnowflake:
+    def test_the_ddl_is_also_accepted(self, tpcds):
+        # A wider shape than fixtureB: five tables, a composite primary key, four
+        # relationships, and a computed dimension needing parentheses.
+        keys = tpcds.execute(
+            """
+            SELECT property_key FROM hologres.hg_semantic_view_properties
+            WHERE schema_name = %s AND view_name = %s
+            """,
+            (SCHEMA, TPCDS_VIEW),
+        ).fetchall()
+        assert {"ddl_text", "model_yaml"} <= {k for (k,) in keys}
+
+    def test_computed_dimension_groups_and_filters(self, tpcds):
+        # The parenthesis workaround exists so expressions like this concatenation
+        # parse at all; prove the resulting dimension also answers queries.
+        rows = tpcds.execute(
+            f"SELECT customer_full_name, AGG(total_profit) FROM {SCHEMA}.{TPCDS_VIEW} "
+            f"WHERE customer_full_name = 'Ann Smith' GROUP BY customer_full_name"
+        ).fetchall()
+        assert rows == [("Ann Smith", 3)]
+
+    def test_importing_the_readback_reproduces_the_example(self, tpcds):
+        # The star round-trip is closed against a fixture; this one closes the loop
+        # for the shapes the star fixture cannot carry: a composite primary key, a
+        # computed dimension, and skipped metrics staying skipped.
+        imported = load_yaml(convert_semantic_view_to_ossie(_model_yaml(tpcds, TPCDS_VIEW)))
+        assert imported["version"] == "0.2.0.dev0"
+
+        datasets = {dataset["name"]: dataset for dataset in imported["datasets"]}
+        assert set(datasets) == set(_TPCDS_TABLES)
+        assert datasets["store_sales"]["primary_key"] == ["ss_item_sk", "ss_ticket_number"]
+        assert datasets["store_sales"]["source"] == (
+            f"{os.environ['HOLOGRES_DB']}.{SCHEMA}.store_sales"
+        )
+
+        fields = {field["name"]: field for field in datasets["customer"]["fields"]}
+        expression = fields["customer_full_name"]["expression"]["dialects"][0]["expression"]
+        # The exact spelling of the literal is instance-dependent (this one echoes
+        # CAST(' ' AS TEXT)); what must hold is that the wrapping the DDL grammar
+        # forced on export is not accumulated by the round trip, and both column
+        # references survive qualified by the dataset alias.
+        assert "((" not in expression
+        assert "c_first_name" in expression and "c_last_name" in expression
+
+        assert {rel["name"] for rel in imported["relationships"]} == {
+            "store_sales_to_date",
+            "store_sales_to_customer",
+            "store_sales_to_item",
+            "store_sales_to_store",
+        }
+        assert {metric["name"] for metric in imported["metrics"]} == {
+            "total_sales",
+            "total_profit",
+            "sales_by_brand",
+        }
 
 
 class TestGeneratedViewAnswersQueries:
