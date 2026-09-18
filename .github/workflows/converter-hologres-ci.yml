@@ -31,7 +31,7 @@ on:
       - '.github/workflows/converter-hologres-ci.yml'
       - 'examples/tpcds_semantic_model.yaml'
       - 'validation/validate.py'
-      - 'core-spec/osi-schema.json'
+      - 'core-spec/ossie-schema.json'
   pull_request:
     branches: [ "main" ]
     paths:
@@ -39,7 +39,7 @@ on:
       - '.github/workflows/converter-hologres-ci.yml'
       - 'examples/tpcds_semantic_model.yaml'
       - 'validation/validate.py'
-      - 'core-spec/osi-schema.json'
+      - 'core-spec/ossie-schema.json'
 
 jobs:
   build:

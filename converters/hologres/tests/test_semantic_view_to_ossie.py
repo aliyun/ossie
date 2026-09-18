@@ -36,7 +36,7 @@ def import_view(view, **kwargs):
 
 
 def model_of(view, **kwargs):
-    return import_view(view, **kwargs)["semantic_model"][0]
+    return import_view(view, **kwargs)
 
 
 def table(name="o", table_name="orders", columns=("id",), **extra):
@@ -296,7 +296,7 @@ class TestYamlEdgeCases:
             "    expr: o.x\n"
         )
         imported = load_yaml(convert_semantic_view_to_ossie(raw))
-        assert imported["semantic_model"][0]["datasets"][0]["fields"][0]["name"] == "no"
+        assert imported["datasets"][0]["fields"][0]["name"] == "no"
 
     def test_unicode_description_is_preserved(self):
         model = model_of(view(table(), description="销售分析语义视图"))

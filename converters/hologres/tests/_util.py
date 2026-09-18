@@ -25,7 +25,7 @@ FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures"
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 EXAMPLES = REPO_ROOT / "examples"
 VALIDATOR = REPO_ROOT / "validation" / "validate.py"
-SCHEMA = REPO_ROOT / "core-spec" / "osi-schema.json"
+SCHEMA = REPO_ROOT / "core-spec" / "ossie-schema.json"
 
 
 def read_fixture(name):
@@ -33,5 +33,5 @@ def read_fixture(name):
 
 
 def ossie_doc(model):
-    """Wrap a single semantic model in a minimal valid Apache Ossie document."""
-    return {"version": "0.2.0.dev0", "semantic_model": [model]}
+    """Place a single semantic model in a minimal valid Apache Ossie document."""
+    return {"version": "0.2.0.dev0", **model}

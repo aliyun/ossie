@@ -56,18 +56,17 @@ class TestMetricOwnerOption:
         path = tmp_path / "model.yaml"
         path.write_text(
             "version: 0.2.0.dev0\n"
-            "semantic_model:\n"
-            "  - name: sv\n"
-            "    datasets:\n"
-            "      - name: o\n"
-            "        source: public.orders\n"
-            "        primary_key: [id]\n"
-            "    metrics:\n"
-            "      - name: n\n"
-            "        expression:\n"
-            "          dialects:\n"
-            "            - dialect: ANSI_SQL\n"
-            "              expression: COUNT(*)\n",
+            "name: sv\n"
+            "datasets:\n"
+            "- name: o\n"
+            "  source: public.orders\n"
+            "  primary_key: [id]\n"
+            "metrics:\n"
+            "- name: n\n"
+            "  expression:\n"
+            "    dialects:\n"
+            "    - dialect: ANSI_SQL\n"
+            "      expression: COUNT(*)\n",
             encoding="utf-8",
         )
         return path

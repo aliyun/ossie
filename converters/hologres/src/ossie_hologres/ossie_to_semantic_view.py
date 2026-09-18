@@ -86,14 +86,13 @@ def convert_ossie_to_semantic_view(
             f"Unsupported Apache Ossie version '{version}'. Supported: {OSSIE_VERSION}"
         )
 
-    models = root.get("semantic_model")
-    if not isinstance(models, list) or not models:
-        raise ConversionError("'semantic_model' must be a non-empty list")
-    if len(models) > 1:
-        _warn("model", "multiple semantic models found; converting only the first")
+    if "semantic_model" in root:
+        raise ConversionError(
+            "'semantic_model' is no longer accepted; the model must sit at the document root"
+        )
 
     return _convert_model(
-        models[0],
+        root,
         schema=schema,
         database=database,
         drop_if_exists=drop_if_exists,

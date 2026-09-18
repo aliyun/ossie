@@ -98,7 +98,7 @@ def convert_semantic_view_to_ossie(model_yaml_str, *, model_name=None):
     if metrics:
         model["metrics"] = metrics
 
-    return dump_yaml({"version": OSSIE_VERSION, "semantic_model": [model]})
+    return dump_yaml({"version": OSSIE_VERSION, **model})
 
 
 def _convert_table(table, alias, view_name):

@@ -88,8 +88,8 @@ ossie_yaml = convert_semantic_view_to_ossie(model_yaml)
 
 | Apache Ossie | Hologres Semantic View |
 |--------------|------------------------|
-| `semantic_model.name` | `view_name` |
-| `semantic_model.description` | view-level `COMMENT` |
+| document root `name` | `view_name` |
+| document root `description` | view-level `COMMENT` |
 | `dataset.name` | `TABLES` alias |
 | `dataset.source` | the `[schema.]table` in `TABLES` |
 | `dataset.primary_key` | `PRIMARY KEY (...)` |

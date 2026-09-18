@@ -67,8 +67,8 @@ STASH_VERSION = 1
 STASH_OWNER = "owner"
 
 # Model-level stash key recording the schema the Semantic View itself lives in.
-# `CREATE SEMANTIC VIEW public.sales_sv` has no Ossie home -- `semantic_model.name`
-# holds only the bare view name.
+# `CREATE SEMANTIC VIEW public.sales_sv` has no Ossie home -- the document's root
+# `name` holds only the bare view name.
 STASH_VIEW_SCHEMA = "view_schema"
 
 # The only aggregate functions Hologres METRICS accept, keyed by sqlglot node type.

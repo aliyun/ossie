@@ -73,7 +73,7 @@ class TestOfflineRoundTripClosure:
 
 class TestParenthesisRoundTrip:
     def _dimension_expr(self, ossie_yaml):
-        model = load_yaml(ossie_yaml)["semantic_model"][0]
+        model = load_yaml(ossie_yaml)
         return model["datasets"][0]["fields"][0]["expression"]["dialects"][0]["expression"]
 
     def test_hologres_normalized_parentheses_are_stripped_on_import(self):
@@ -98,18 +98,17 @@ class TestParenthesisRoundTrip:
     def test_export_re_adds_the_parentheses_the_grammar_requires(self):
         ossie = (
             "version: 0.2.0.dev0\n"
-            "semantic_model:\n"
-            "  - name: sv\n"
-            "    datasets:\n"
-            "      - name: c\n"
-            "        source: public.customers\n"
-            "        primary_key: [id]\n"
-            "        fields:\n"
-            "          - name: full_name\n"
-            "            expression:\n"
-            "              dialects:\n"
-            "                - dialect: ANSI_SQL\n"
-            "                  expression: first_name || last_name\n"
+            "name: sv\n"
+            "datasets:\n"
+            "- name: c\n"
+            "  source: public.customers\n"
+            "  primary_key: [id]\n"
+            "  fields:\n"
+            "  - name: full_name\n"
+            "    expression:\n"
+            "      dialects:\n"
+            "      - dialect: ANSI_SQL\n"
+            "        expression: first_name || last_name\n"
         )
         ddl = quiet_export(ossie)
         assert "c.full_name AS (c.first_name || c.last_name)" in ddl

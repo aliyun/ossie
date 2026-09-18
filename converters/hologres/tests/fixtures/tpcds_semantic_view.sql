@@ -25,7 +25,7 @@ CREATE SEMANTIC VIEW tpcds_retail_model
     date_dim.d_date AS date_dim.d_date COMMENT = 'Actual date value',
     date_dim.d_year AS date_dim.d_year COMMENT = 'Year',
     date_dim.d_quarter_name AS date_dim.d_quarter_name COMMENT = 'Quarter name (e.g., 2024Q1)',
-    date_dim.d_month_name AS date_dim.d_month_name COMMENT = 'Month name',
+    date_dim.d_moy AS date_dim.d_moy COMMENT = 'Month of year (1-12)',
     customer.c_customer_sk AS customer.c_customer_sk COMMENT = 'Surrogate key for customer',
     customer.c_customer_id AS customer.c_customer_id COMMENT = 'Business key for customer',
     customer.c_first_name AS customer.c_first_name COMMENT = 'Customer first name',

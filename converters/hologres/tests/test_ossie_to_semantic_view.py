@@ -118,22 +118,11 @@ class TestDocumentValidation:
 
     def test_wrong_version_is_rejected(self):
         with pytest.raises(ConversionError, match="Unsupported Apache Ossie version"):
-            convert_ossie_to_semantic_view("version: 0.1.0\nsemantic_model: []\n")
+            convert_ossie_to_semantic_view("version: 0.1.0\n")
 
-    def test_empty_model_list_is_rejected(self):
-        with pytest.raises(ConversionError, match="non-empty list"):
+    def test_removed_wrapper_is_rejected(self):
+        with pytest.raises(ConversionError, match="no longer accepted"):
             convert_ossie_to_semantic_view("version: 0.2.0.dev0\nsemantic_model: []\n")
-
-    def test_multiple_models_warns_and_converts_the_first(self):
-        doc = {
-            "version": "0.2.0.dev0",
-            "semantic_model": [one_table(metrics=[metric("m", "COUNT(o.id)")]), one_table()],
-        }
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            ddl = convert_ossie_to_semantic_view(dump_yaml(doc))
-        assert "multiple semantic models" in " ".join(str(w.message) for w in caught)
-        assert "CREATE SEMANTIC VIEW sv" in ddl
 
     def test_model_without_datasets_is_rejected(self):
         with pytest.raises(ConversionError, match="has no datasets"):
