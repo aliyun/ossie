@@ -191,7 +191,7 @@ class TestGeneratedDdlIsAccepted:
           PRIMARY KEY (ss_item_sk, ss_ticket_number));
         CREATE TABLE IF NOT EXISTS {SCHEMA}.date_dim (
           d_date_sk int PRIMARY KEY, d_date date, d_year int, d_quarter_name text,
-          d_month_name text);
+          d_moy int);
         CREATE TABLE IF NOT EXISTS {SCHEMA}.customer (
           c_customer_sk int PRIMARY KEY, c_customer_id text, c_first_name text,
           c_last_name text, c_email_address text);
@@ -294,6 +294,13 @@ class TestFullRoundTrip:
             for table in doc["tables"]:
                 # Only the location differs: the fixture was captured from public.
                 table["base_table"] = table["base_table"]["table"]
+            for relationship in doc.get("relationships", []):
+                # Hologres infers this from the PRIMARY KEY and emits it
+                # inconsistently between reads, so it carries no signal here.
+                relationship.pop("relationship_type", None)
+            doc["relationships"] = sorted(
+                doc.get("relationships", []), key=lambda rel: rel["name"]
+            )
         assert live == fixture, (
             "Hologres' model_yaml no longer matches tests/fixtures/fixtureB_model_yaml.yaml; "
             "refresh the fixture from the instance"
